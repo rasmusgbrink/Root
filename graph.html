@@ -1,88 +1,75 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
+<style>
+
+path {
+  stroke: #fff;
+}
+
+path:first-child {
+  fill: yellow !important;
+}
+
+circle {
+  fill: #000;
+  pointer-events: none;
+}
+
+.q0-9 { fill: rgb(197,27,125); }
+.q1-9 { fill: rgb(222,119,174); }
+.q2-9 { fill: rgb(241,182,218); }
+.q3-9 { fill: rgb(253,224,239); }
+.q4-9 { fill: rgb(247,247,247); }
+.q5-9 { fill: rgb(230,245,208); }
+.q6-9 { fill: rgb(184,225,134); }
+.q7-9 { fill: rgb(127,188,65); }
+.q8-9 { fill: rgb(77,146,33); }
+
+</style>
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.19/topojson.min.js"></script>
 <script>
 
 var width = 960,
     height = 500;
 
-var sf = [-122.417, 37.775],
-    ny = [-74.0064, 40.7142];
-
-var scale,
-    translate,
-    visibleArea, // minimum area threshold for points inside viewport
-    invisibleArea; // minimum area threshold for points outside viewport
-
-var simplify = d3.geo.transform({
-  point: function(x, y, z) {
-    if (z < visibleArea) return;
-    x = x * scale + translate[0];
-    y = y * scale + translate[1];
-    if (x >= -10 && x <= width + 10 && y >= -10 && y <= height + 10 || z >= invisibleArea) this.stream.point(x, y);
-  }
+var vertices = d3.range(100).map(function(d) {
+  return [Math.random() * width, Math.random() * height];
 });
 
-var zoom = d3.behavior.zoom()
-    .size([width, height])
-    .on("zoom", zoomed);
+var voronoi = d3.geom.voronoi()
+    .clipExtent([[0, 0], [width, height]]);
 
-// This projection is baked into the TopoJSON file,
-// but is used here to compute the desired zoom translate.
-var projection = d3.geo.mercator()
-    .translate([0, 0])
-    .scale(4000);
-
-var canvas = d3.select("body").append("canvas")
+var svg = d3.select("body").append("svg")
     .attr("width", width)
-    .attr("height", height);
+    .attr("height", height)
+    .on("mousemove", function() { vertices[0] = d3.mouse(this); redraw(); });
 
-var context = canvas.node().getContext("2d");
+var path = svg.append("g").selectAll("path");
 
-var path = d3.geo.path()
-    .projection(simplify)
-    .context(context);
+svg.selectAll("circle")
+    .data(vertices.slice(1))
+  .enter().append("circle")
+    .attr("transform", function(d) { return "translate(" + d + ")"; })
+    .attr("r", 1.5);
 
-d3.json("us-states.json", function(error, json) {
-  if (error) throw error;
+redraw();
 
-  canvas
-      .datum(topojson.mesh(topojson.presimplify(json)))
-      .call(zoomTo(sf, 4).event)
-    .transition()
-      .duration(60 * 1000 / 89 * 2)
-      .each(jump);
-});
+function redraw() {
+  path = path
+      .data(voronoi(vertices), polygon);
 
-function zoomTo(location, scale) {
-  var point = projection(location);
-  return zoom
-      .translate([width / 2 - point[0] * scale, height / 2 - point[1] * scale])
-      .scale(scale);
+  path.exit().remove();
+
+  path.enter().append("path")
+      .attr("class", function(d, i) { return "q" + (i % 9) + "-9"; })
+      .attr("d", polygon);
+
+  path.order();
 }
 
-function zoomed(d) {
-  translate = zoom.translate();
-  scale = zoom.scale();
-  visibleArea = 1 / scale / scale;
-  invisibleArea = 200 * visibleArea;
-  context.clearRect(0, 0, width, height);
-  context.beginPath();
-  path(d);
-  context.stroke();
-}
-
-function jump() {
-  var t = d3.select(this);
-  (function repeat() {
-    t = t.transition()
-        .call(zoomTo(ny, 6).event)
-      .transition()
-        .call(zoomTo(sf, 4).event)
-        .each("end", repeat);
-  })();
+function polygon(d) {
+  return "M" + d.join("L") + "Z";
 }
 
 </script>
